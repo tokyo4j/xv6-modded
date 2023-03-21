@@ -1,0 +1,15 @@
+{
+  "configurations": [
+    {
+      "name": "C++ Launch",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceRoot}/kernel.elf",
+      "miDebuggerServerAddress": "localhost:1234",
+      "cwd": "${workspaceRoot}",
+      "externalConsole": true,
+      "MIMode": "gdb"
+    }
+  ],
+  "version": "2.0.0"
+}
