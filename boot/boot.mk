@@ -5,8 +5,14 @@ bootblock: boot/bootblock.o
 boot/bootblock.o: boot/bootasm.o boot/bootmain.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o $@ $^
 
+ifeq ($(USE_CLANG), y)
+OPT_FOR_SIZE = -Oz
+else
+OPT_FOR_SIZE = -O
+endif
+
 boot/bootmain.o: boot/bootmain.c
-	$(CC) $(CFLAGS) -O -c $< -o $@
+	$(CC) $(CFLAGS) $(OPT_FOR_SIZE) -c $< -o $@
 
 boot/bootasm.o: boot/bootasm.S
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(OPT_FOR_SIZE) -c $< -o $@

@@ -1,17 +1,24 @@
 SHELL = bash
-TOOLPREFIX = i386-elf-
+USE_CLANG = n
 
+ifeq ($(USE_CLANG), y)
+CC = clang -target i386-pc-linux-gnu
+LD = ld.lld
+OBJCOPY = llvm-objcopy
+OBJDUMP = llvm-objdump
+else
+TOOLPREFIX = i386-elf-
 CC = $(TOOLPREFIX)gcc
-AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
-CFLAGS = -fno-pic -fno-pie -no-pie\
-					-static -O2 -ggdb -m32 -nostdinc\
-					-fno-builtin -fno-strict-aliasing -fno-omit-frame-pointer -fno-stack-protector\
+endif
+
+CFLAGS = -static -ggdb -nostdinc -m32 -mno-sse\
+					-fno-builtin -fno-strict-aliasing -fno-omit-frame-pointer -fno-stack-protector -fno-pic -fno-pie\
 					-Iinclude\
 					-Wall
-ASFLAGS = -m32 -gdwarf-2 -Wa,-divide -Iinclude
+ASFLAGS = -m32 -gdwarf-2 -Iinclude
 LDFLAGS += -m elf_i386
 
 QEMU = qemu-system-i386
