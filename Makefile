@@ -1,5 +1,5 @@
 SHELL = bash
-USE_CLANG = n
+USE_CLANG = y
 
 ifeq ($(USE_CLANG), y)
 CC = clang -target i386-pc-linux-gnu
@@ -21,8 +21,9 @@ CFLAGS = -static -ggdb -nostdinc -m32 -mno-sse\
 ASFLAGS = -m32 -gdwarf-2 -Iinclude
 LDFLAGS += -m elf_i386
 
+NCPU = 4
 QEMU = qemu-system-i386
-QEMUOPTS = -serial mon:stdio -smp 2,sockets=2,cores=1,threads=1 -m 512
+QEMUOPTS = -serial mon:stdio -smp $(NCPU),sockets=$(NCPU),cores=1,threads=1 -m 512
 
 default: xv6.img
 
@@ -37,17 +38,17 @@ include kernel/kernel.mk
 include user/user.mk
 
 xv6.img: bootblock kernel.elf
-	dd if=/dev/zero of=xv6.img count=10000
-	dd if=bootblock of=xv6.img conv=notrunc
-	dd if=kernel.elf of=xv6.img seek=1 conv=notrunc
+	dd if=/dev/zero of=$@ count=10000
+	dd if=bootblock of=$@ conv=notrunc
+	dd if=kernel.elf of=$@ seek=1 conv=notrunc
 
-xv6memfs.img: bootblock kernelmemfs
-	dd if=/dev/zero of=xv6memfs.img count=10000
-	dd if=bootblock of=xv6memfs.img conv=notrunc
-	dd if=kernelmemfs of=xv6memfs.img seek=1 conv=notrunc
+xv6memfs.img: bootblock kernelmemfs.elf
+	dd if=/dev/zero of=$@ count=10000
+	dd if=bootblock of=$@ conv=notrunc
+	dd if=kernelmemfs.elf of=$@ seek=1 conv=notrunc
 
-mkfs: mkfs.c include/fs.h
-	gcc -Werror -Wall -o $@ mkfs.c
+mkfs: mkfs.c include/xv6/fs.h
+	gcc -Werror -Wall -Iinclude -o $@ mkfs.c
 
 fs.img: mkfs README $(UPROGS)
 	mkdir fs
@@ -62,7 +63,7 @@ clean:
 		-name '*.out' -o \
 		-name '*.o' \
 		| xargs rm -f
-	rm -f kernel/entryother kernel/initcode kernel/vectors.S kernel.elf bootblock mkfs kernelmemfs user/_*
+	rm -f kernel/entryother kernel/initcode kernel/vectors.S kernel.elf bootblock mkfs kernelmemfs.elf user/_*
 
 qemu: fs.img xv6.img
 	$(QEMU) $(QEMUOPTS)\

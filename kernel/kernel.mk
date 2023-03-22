@@ -16,7 +16,7 @@ KERN_OBJS_MEMFS := $(KERN_OBJS) kernel/ide/memide.o
 kernel.elf: $(KERN_OBJS_IDEFS) kernel/entryother kernel/initcode kernel/kernel.ld
 	$(LD) $(LDFLAGS) -T kernel/kernel.ld -o $@ $(KERN_OBJS_IDEFS) -b binary kernel/initcode kernel/entryother
 
-kernelmemfs: $(KERN_OBJS_MEMFS) kernel/entryother kernel/initcode kernel/kernel.ld fs.img
+kernelmemfs.elf: $(KERN_OBJS_MEMFS) kernel/entryother kernel/initcode kernel/kernel.ld fs.img
 	$(LD) $(LDFLAGS) -T kernel/kernel.ld -o $@ $(KERN_OBJS_MEMFS) -b binary kernel/initcode kernel/entryother fs.img
 
 kernel/initcode: kernel/bin/initcode.out

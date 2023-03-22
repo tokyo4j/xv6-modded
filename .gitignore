@@ -11,6 +11,6 @@ vectors.S
 bootblock
 entryother
 initcode
-kernelmemfs
 mkfs
 .gdbinit
+.gdb_history

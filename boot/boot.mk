@@ -1,4 +1,4 @@
-bootblock: boot/bootblock.o
+bootblock: boot/bootblock.o boot/sign.pl
 	$(OBJCOPY) -S -O binary -j .text $< $@
 	./boot/sign.pl $@
 

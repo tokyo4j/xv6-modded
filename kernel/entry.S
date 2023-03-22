@@ -6,7 +6,7 @@
 # http://www.gnu.org/software/grub/manual/multiboot/multiboot.html
 #
 # Using GRUB 2, you can boot xv6 from a file stored in a
-# Linux file system by copying kernel or kernelmemfs to /boot
+# Linux file system by copying kernel or kernelmemfs.elf to /boot
 # and then adding this menu entry:
 #
 # menuentry "xv6" {
@@ -18,10 +18,10 @@
 # 	boot
 # }
 
-#include "asm.h"
-#include "memlayout.h"
-#include "mmu.h"
-#include "param.h"
+#include <xv6/asm.h>
+#include <xv6/memlayout.h>
+#include <xv6/mmu.h>
+#include <xv6/param.h>
 
 # Multiboot header.  Data to direct multiboot loader.
 .p2align 2
