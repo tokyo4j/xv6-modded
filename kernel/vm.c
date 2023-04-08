@@ -25,6 +25,19 @@ void seginit(void) {
   c->gdt[SEG_UCODE] = SEG(STA_X | STA_R, 0, 0xffffffff, DPL_USER);
   c->gdt[SEG_UDATA] = SEG(STA_W, 0, 0xffffffff, DPL_USER);
   lgdt(c->gdt, sizeof(c->gdt));
+  asm volatile("ljmp %0, $1f\n"
+               "1:\n"
+               "movw %1, %%ax\n"
+               "movw %%ax, %%ds\n"
+               "movw %%ax, %%es\n"
+               "movw %%ax, %%ss\n"
+               "movw $0, %%ax\n"
+               "movw %%ax, %%fs\n"
+               "movw %%ax, %%gs\n"
+
+               ::"i"(SEG_KCODE << 3),
+               "i"(SEG_KDATA << 3)
+               : "ax");
 }
 
 // Return the address of the PTE in page table pgdir

@@ -56,6 +56,13 @@ fs.img: mkfs README $(UPROGS)
 	cd fs && ../mkfs ../fs.img README $(patsubst user/%, %, $(UPROGS))
 	rm -r fs
 
+xv6.iso: kernel.elf
+	mkdir -p isodir/boot/grub
+	cp $< isodir/boot/
+	cp grub.cfg isodir/boot/grub/
+	grub-mkrescue -o $@ isodir
+	rm -r isodir
+
 clean:
 	find \
 		-name '*.d' -o \
@@ -92,3 +99,8 @@ qemu-nox-gdb: fs.img xv6.img
 		-drive file=xv6.img,index=0,media=disk,format=raw\
 		-nographic\
 		-S -s
+
+qemu-iso: xv6.iso fs.img
+	$(QEMU) $(QEMUOPTS)\
+		-drive file=fs.img,index=1,media=disk,format=raw\
+		-cdrom xv6.iso

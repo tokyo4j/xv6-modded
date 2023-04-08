@@ -41,7 +41,7 @@ void bootmain(void) {
 
   // Call the entry point from the ELF header.
   // Does not return!
-  entry = (void (*)(void))(elf->entry);
+  entry = (void (*)(void))V2P(elf->entry);
   entry();
 }
 

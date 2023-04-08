@@ -34,15 +34,13 @@ multiboot_header:
   .long flags
   .long (-magic-flags)
 
-# By convention, the _start symbol specifies the ELF entry point.
-# Since we haven't set up virtual memory yet, our entry point is
-# the physical address of 'entry'.
-.globl _start
-_start = V2P_WO(entry)
 
 # Entering xv6 on boot processor, with paging off.
-.globl entry
-entry:
+
+# _start is the virtual address of the ELF entry point.
+# When booted from xv6's bootloader (not 3rd party bootloaders like GRUB), eip actually points to _start - KERNBASE.
+.globl _start
+_start:
   # Turn on page size extension for 4Mbyte pages
   movl    %cr4, %eax
   orl     $(CR4_PSE), %eax
