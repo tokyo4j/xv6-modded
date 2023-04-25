@@ -11,8 +11,5 @@ else
 OPT_FOR_SIZE = -O
 endif
 
-boot/bootmain.o: boot/bootmain.c
-	$(CC) $(CFLAGS) $(OPT_FOR_SIZE) -c $< -o $@
-
-boot/bootasm.o: boot/bootasm.S
+boot/%.o: boot/%.c
 	$(CC) $(CFLAGS) $(OPT_FOR_SIZE) -c $< -o $@

@@ -8,6 +8,7 @@
 #include <xv6/param.h>
 #include <xv6/sleeplock.h>
 #include <xv6/spinlock.h>
+#include <xv6/stat.h>
 #include <xv6/types.h>
 
 struct devsw devsw[NDEV];
@@ -115,10 +116,12 @@ int filewrite(struct file *f, char *addr, int n) {
     // this really belongs lower down, since writei()
     // might be writing a device like the console.
     int max = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * 512;
-    int i = 0;
+    int i = 0; // bytes written so far
     while (i < n) {
-      int n1 = n - i;
-      if (n1 > max)
+      int n1 = n - i; // bytes to write in this iteration
+
+      if (f->ip->type != T_DEV && n1 > max)
+        // there's no limit in write size for a character device
         n1 = max;
 
       begin_op();
