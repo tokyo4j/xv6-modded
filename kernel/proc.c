@@ -55,7 +55,6 @@ struct proc *myproc(void) {
   return p;
 }
 
-// PAGEBREAK: 32
 //  Look in the process table for an UNUSED proc.
 //  If found, change state to EMBRYO and initialize
 //  state required to run in the kernel.
@@ -103,7 +102,6 @@ found:
   return p;
 }
 
-// PAGEBREAK: 32
 //  Set up first user process.
 void userinit(void) {
   struct proc *p;
@@ -114,7 +112,8 @@ void userinit(void) {
   initproc = p;
   if ((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
-  inituvm(p->pgdir, _binary_kernel_initcode_start,
+  inituvm(p->pgdir,
+          _binary_kernel_initcode_start,
           (int)_binary_kernel_initcode_size);
   p->sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
@@ -290,7 +289,6 @@ int wait(void) {
   }
 }
 
-// PAGEBREAK: 42
 //  Per-CPU process scheduler.
 //  Each CPU calls scheduler() after setting itself up.
 //  Scheduler never returns.  It loops, doing:
@@ -419,7 +417,6 @@ void sleep(void *chan, struct spinlock *lk) {
   }
 }
 
-// PAGEBREAK!
 //  Wake up all processes sleeping on chan.
 //  The ptable lock must be held.
 static void wakeup1(void *chan) {
@@ -458,14 +455,16 @@ int kill(int pid) {
   return -1;
 }
 
-// PAGEBREAK: 36
 //  Print a process listing to console.  For debugging.
 //  Runs when user types ^P on console.
 //  No lock to avoid wedging a stuck machine further.
 void procdump(void) {
-  static char *states[] = {
-      [UNUSED] = "unused",   [EMBRYO] = "embryo",  [SLEEPING] = "sleep ",
-      [RUNNABLE] = "runble", [RUNNING] = "run   ", [ZOMBIE] = "zombie"};
+  static char *states[] = {[UNUSED] = "unused",
+                           [EMBRYO] = "embryo",
+                           [SLEEPING] = "sleep ",
+                           [RUNNABLE] = "runble",
+                           [RUNNING] = "run   ",
+                           [ZOMBIE] = "zombie"};
   int i;
   struct proc *p;
   char *state;

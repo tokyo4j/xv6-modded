@@ -65,7 +65,8 @@ static void startothers(void) {
   // The linker has placed the image of entryother.S in
   // _binary_entryother_start.
   code = P2V(0x7000);
-  memmove(code, _binary_kernel_entryother_start,
+  memmove(code,
+          _binary_kernel_entryother_start,
           (uint)_binary_kernel_entryother_size);
 
   for (c = cpus; c < cpus + ncpu; c++) {
@@ -99,10 +100,3 @@ __attribute__((__aligned__(PGSIZE))) pde_t entrypgdir[NPDENTRIES] = {
     // Map VA's [KERNBASE, KERNBASE+4MB) to PA's [0, 4MB)
     [KERNBASE >> PDXSHIFT] = (0) | PTE_P | PTE_W | PTE_PS,
 };
-
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.

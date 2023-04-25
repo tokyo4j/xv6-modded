@@ -101,7 +101,12 @@ int main(int argc, char *argv[]) {
 
   printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks "
          "%u) blocks %d total %d\n",
-         nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
+         nmeta,
+         nlog,
+         ninodeblocks,
+         nbitmap,
+         nblocks,
+         FSSIZE);
 
   freeblock = nmeta; // the first free block that we can allocate
 

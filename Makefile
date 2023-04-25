@@ -80,6 +80,9 @@ clean:
 		| xargs rm -f
 	rm -f kernel/entryother kernel/initcode kernel/vectors.S kernel.elf bootblock mkfs kernelmemfs.elf user/_*
 
+format:
+	find . -iname "*.c" -o -iname ".h" | xargs clang-format -i
+
 qemu: fs.img xv6.img
 	$(QEMU) $(QEMUOPTS)\
 		-drive file=fs.img,index=1,media=disk,format=raw\

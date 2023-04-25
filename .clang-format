@@ -1,2 +1,4 @@
 BasedOnStyle: LLVM
 AlignConsecutiveMacros: true
+BinPackArguments: false
+IndentCaseLabels: true

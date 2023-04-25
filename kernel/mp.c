@@ -94,27 +94,27 @@ void mpinit(void) {
   lapic = (uint *)conf->lapicaddr;
   for (p = (uchar *)(conf + 1), e = (uchar *)conf + conf->length; p < e;) {
     switch (*p) {
-    case MPPROC:
-      proc = (struct mpproc *)p;
-      if (ncpu < NCPU) {
-        cpus[ncpu].apicid = proc->apicid; // apicid may differ from ncpu
-        ncpu++;
-      }
-      p += sizeof(struct mpproc);
-      continue;
-    case MPIOAPIC:
-      ioapic = (struct mpioapic *)p;
-      ioapicid = ioapic->apicno;
-      p += sizeof(struct mpioapic);
-      continue;
-    case MPBUS:
-    case MPIOINTR:
-    case MPLINTR:
-      p += 8;
-      continue;
-    default:
-      ismp = 0;
-      break;
+      case MPPROC:
+        proc = (struct mpproc *)p;
+        if (ncpu < NCPU) {
+          cpus[ncpu].apicid = proc->apicid; // apicid may differ from ncpu
+          ncpu++;
+        }
+        p += sizeof(struct mpproc);
+        continue;
+      case MPIOAPIC:
+        ioapic = (struct mpioapic *)p;
+        ioapicid = ioapic->apicno;
+        p += sizeof(struct mpioapic);
+        continue;
+      case MPBUS:
+      case MPIOINTR:
+      case MPLINTR:
+        p += 8;
+        continue;
+      default:
+        ismp = 0;
+        break;
     }
   }
   if (!ismp)

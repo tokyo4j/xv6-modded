@@ -132,8 +132,11 @@ pde_t *setupkvm(void) {
   if (P2V(PHYSTOP) > (void *)DEVSPACE)
     panic("PHYSTOP too high");
   for (k = kmap; k < &kmap[NELEM(kmap)]; k++)
-    if (mappages(pgdir, k->virt, k->phys_end - k->phys_start,
-                 (uint)k->phys_start, k->perm) < 0) {
+    if (mappages(pgdir,
+                 k->virt,
+                 k->phys_end - k->phys_start,
+                 (uint)k->phys_start,
+                 k->perm) < 0) {
       freevm(pgdir);
       return 0;
     }
@@ -329,7 +332,6 @@ bad:
   return 0;
 }
 
-// PAGEBREAK!
 //  Map user virtual address to kernel address.
 char *uva2ka(pde_t *pgdir, char *uva) {
   pte_t *pte;
@@ -365,10 +367,3 @@ int copyout(pde_t *pgdir, uint va, void *p, uint len) {
   }
   return 0;
 }
-
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.
-// PAGEBREAK!
-//  Blank page.

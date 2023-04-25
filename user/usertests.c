@@ -1410,8 +1410,8 @@ void sbrktest(void) {
   }
   c = sbrk(0);
   if (c != a - 4096) {
-    printf(stdout, "sbrk deallocation produced wrong address, a %x c %x\n", a,
-           c);
+    printf(
+        stdout, "sbrk deallocation produced wrong address, a %x c %x\n", a, c);
     exit();
   }
 
