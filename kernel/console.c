@@ -77,6 +77,9 @@ void cprintf(char *fmt, ...) {
       case 'p':
         printint(*argp++, 16, 0);
         break;
+      case 'c':
+        consputc(*argp++);
+        break;
       case 's':
         if ((s = (char *)*argp++) == 0)
           s = "(null)";

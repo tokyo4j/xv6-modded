@@ -65,6 +65,7 @@ void iderw(struct buf *);
 // ioapic.c
 void ioapicenable(int irq, int cpu);
 extern uchar ioapicid;
+extern volatile struct ioapic *ioapic;
 void ioapicinit(void);
 
 // kalloc.c

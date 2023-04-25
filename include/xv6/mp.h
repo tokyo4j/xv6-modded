@@ -1,57 +1,94 @@
-// See MultiProcessor Specification Version 1.[14]
+// References:
+// https://wiki.osdev.org/RSDP
+// https://wiki.osdev.org/RSDT
+// https://wiki.osdev.org/MADT
 
 #pragma once
 
 #include <xv6/types.h>
 
-struct mp {           // floating pointer
-  uchar signature[4]; // "_MP_"
-  void *physaddr;     // phys addr of MP config table
-  uchar length;       // 1
-  uchar specrev;      // [14]
-  uchar checksum;     // all bytes must add up to 0
-  uchar type;         // MP system config type
-  uchar imcrp;
-  uchar reserved[3];
+// clang-format off
+/*
+Example:
+
+  +-rsdp_desc-+
+  | signature |< signature == "RSD PTR "
+  |    ...    |
+  | rsdt_addr |----->+------rsdt------+
+  +-----------+      | h (sdt_header) |< h.signature == "RSDT"
+                     |   children[0]  |
+                     |   children[1]  |----->+------madt-------+
+                     |   children[2]  |      |  h (sdt_header) |< h.signature == "APIC"
+                     |   children[3]  |      |    lapic_addr   |
+                     +----------------+      |      flags      |
+                                             +---madt_lapic----+
+                                             | h (madt_header) |< h.type == 0
+                                             |     apic_pid    |
+                                             |     apic_id     |
+                                             |      flags      |
+                                             +---madt_lapic----+
+                                             |       ...       |
+                                             +---madt_ioapic---+
+                                             | h (madt_header) |< h.type == 1
+                                             |    ioapic_id    |
+                                             |     reserved    |
+                                             |   ioapic_addr   |
+                                             |     gsi_base    |
+                                             +---madt_ioapic---+
+                                             |       ...       |
+                                             +-----------------+
+*/
+// clang-format on
+
+struct rsdp_desc {
+  char signature[8];
+  uchar checksum;
+  char oem_id[6];
+  uchar rev;
+  uint rsdt_addr;
+} __attribute__((packed));
+
+struct sdt_header {
+  char signature[4];
+  uint len;
+  uchar rev;
+  uchar checksum;
+  char oem_id[6];
+  char oem_tbl_id[8];
+  uint oem_rev;
+  uint creator_id;
+  uint creator_rev;
 };
 
-struct mpconf {       // configuration table header
-  uchar signature[4]; // "PCMP"
-  ushort length;      // total table length
-  uchar version;      // [14]
-  uchar checksum;     // all bytes must add up to 0
-  uchar product[20];  // product id
-  uint *oemtable;     // OEM table pointer
-  ushort oemlength;   // OEM table length
-  ushort entry;       // entry count
-  uint *lapicaddr;    // address of local APIC
-  ushort xlength;     // extended table length
-  uchar xchecksum;    // extended table checksum
+struct rsdt {
+  struct sdt_header h;
+  uint children[];
+};
+
+struct madt {
+  struct sdt_header h;
+  uint lapic_addr;
+  uint flags;
+};
+
+struct madt_header {
+  uchar type;
+  uchar len;
+};
+
+// madt_header::type == 0
+struct madt_lapic {
+  struct madt_header h;
+  uchar apic_pid;
+  uchar apic_id;
+  uint flags; // bit 0 is set when the CPU can be enabled
+};
+
+// madt_header::type == 1
+struct madt_ioapic {
+  struct madt_header h;
+  uchar ioapic_id;
   uchar reserved;
+  uint ioapic_addr;
+  uint gsi_base;
 };
-
-struct mpproc {       // processor table entry
-  uchar type;         // entry type (0)
-  uchar apicid;       // local APIC id
-  uchar version;      // local APIC verison
-  uchar flags;        // CPU flags
-#define MPBOOT 0x02   // This proc is the bootstrap processor.
-  uchar signature[4]; // CPU signature
-  uint feature;       // feature flags from CPUID instruction
-  uchar reserved[8];
-};
-
-struct mpioapic { // I/O APIC table entry
-  uchar type;     // entry type (2)
-  uchar apicno;   // I/O APIC id
-  uchar version;  // I/O APIC version
-  uchar flags;    // I/O APIC flags
-  uint *addr;     // I/O APIC address
-};
-
-// Table entry types
-#define MPPROC   0x00 // One per processor
-#define MPBUS    0x01 // One per bus
-#define MPIOAPIC 0x02 // One per I/O APIC
-#define MPIOINTR 0x03 // One per bus interrupt source
-#define MPLINTR  0x04 // One per system interrupt source

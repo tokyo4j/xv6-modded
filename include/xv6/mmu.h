@@ -74,6 +74,7 @@ struct segdesc {
 // +----------------+----------------+---------------------+
 //  \--- PDX(va) --/ \--- PTX(va) --/
 
+#ifndef __ASSEMBLER__
 // page directory index
 #define PDX(va) (((uint)(va) >> PDXSHIFT) & 0x3FF)
 
@@ -82,6 +83,7 @@ struct segdesc {
 
 // construct virtual address from indexes and offset
 #define PGADDR(d, t, o) ((uint)((d) << PDXSHIFT | (t) << PTXSHIFT | (o)))
+#endif
 
 // Page directory and page table constants.
 #define NPDENTRIES 1024 // # directory entries per page directory
@@ -100,11 +102,11 @@ struct segdesc {
 #define PTE_U  0x004 // User
 #define PTE_PS 0x080 // Page Size
 
+#ifndef __ASSEMBLER__
 // Address in page table or page directory entry
 #define PTE_ADDR(pte)  ((uint)(pte) & ~0xFFF)
 #define PTE_FLAGS(pte) ((uint)(pte)&0xFFF)
 
-#ifndef __ASSEMBLER__
 typedef uint pte_t;
 
 // Task state segment format
