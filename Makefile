@@ -48,7 +48,7 @@ xv6memfs.img: bootblock kernelmemfs.elf
 	dd if=kernelmemfs.elf of=$@ seek=1 conv=notrunc
 
 mkfs: mkfs.c include/xv6/fs.h
-	gcc -Werror -Wall -Iinclude -o $@ mkfs.c
+	$(if $(USE_CLANG), clang, gcc) -Werror -Wall -Iinclude -o $@ mkfs.c
 
 fs.img: mkfs README $(UPROGS)
 	mkdir fs
@@ -63,11 +63,19 @@ xv6.iso: kernel.elf
 	grub-mkrescue -o $@ isodir
 	rm -r isodir
 
+xv6memfs.iso: kernelmemfs.elf
+	mkdir -p isodir/boot/grub
+	cp $< isodir/boot/kernel.elf
+	cp grub.cfg isodir/boot/grub/
+	grub-mkrescue -o $@ isodir
+	rm -r isodir
+
 clean:
 	find \
 		-name '*.d' -o \
 		-name '*.img' -o \
 		-name '*.out' -o \
+		-name '*.iso' -o \
 		-name '*.o' \
 		| xargs rm -f
 	rm -f kernel/entryother kernel/initcode kernel/vectors.S kernel.elf bootblock mkfs kernelmemfs.elf user/_*
@@ -104,3 +112,7 @@ qemu-iso: xv6.iso fs.img
 	$(QEMU) $(QEMUOPTS)\
 		-drive file=fs.img,index=1,media=disk,format=raw\
 		-cdrom xv6.iso
+
+qemu-iso-memfs: xv6memfs.iso
+	$(QEMU) $(QEMUOPTS)\
+		-cdrom $<
