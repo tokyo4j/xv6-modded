@@ -1,16 +1,11 @@
 // Sleeping locks
 
-#include <xv6/defs.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
 #include <xv6/proc.h>
 #include <xv6/sleeplock.h>
 #include <xv6/spinlock.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
 
-void initsleeplock(struct sleeplock *lk, char *name) {
+void initsleeplock(struct sleeplock *lk, const char *name) {
   initlock(&lk->lk, "sleep lock");
   lk->name = name;
   lk->locked = 0;

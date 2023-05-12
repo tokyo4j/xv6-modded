@@ -2,6 +2,7 @@
 
 #include <xv6/fs.h>
 #include <xv6/sleeplock.h>
+#include <xv6/stat.h>
 #include <xv6/types.h>
 
 struct file {
@@ -14,29 +15,22 @@ struct file {
   uint off;
 };
 
-// in-memory copy of an inode
-struct inode {
-  uint dev;              // Device number
-  uint inum;             // Inode number
-  int ref;               // Reference count
-  struct sleeplock lock; // protects everything below here
-  int valid;             // inode has been read from disk?
-
-  short type; // copy of disk inode
-  short major;
-  short minor;
-  short nlink;
-  uint size;
-  uint addrs[NDIRECT + 1];
-};
-
 // table mapping major device number to
 // device functions
 struct devsw {
-  int (*read)(struct inode *, char *, int);
-  int (*write)(struct inode *, char *, int);
+  int (*read)(struct inode *ip, char *dst, int n);
+  int (*write)(struct inode *ip, const char *src, int n);
 };
 
 extern struct devsw devsw[];
 
+// major number of console device
 #define CONSOLE 1
+
+struct file *filealloc(void);
+void fileclose(struct file *f);
+struct file *filedup(struct file *f);
+void fileinit(void);
+int fileread(struct file *f, char *addr, int n);
+int filestat(struct file *f, struct stat *st);
+int filewrite(struct file *f, char *addr, int n);

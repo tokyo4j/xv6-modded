@@ -9,16 +9,14 @@
 // routines.  The (higher-level) system call implementations
 // are in sysfile.c.
 
-#include <xv6/buf.h>
-#include <xv6/defs.h>
-#include <xv6/file.h>
+#include <xv6/bio.h>
+#include <xv6/console.h>
 #include <xv6/fs.h>
-#include <xv6/mmu.h>
+#include <xv6/log.h>
 #include <xv6/param.h>
 #include <xv6/proc.h>
-#include <xv6/sleeplock.h>
-#include <xv6/spinlock.h>
 #include <xv6/stat.h>
+#include <xv6/string.h>
 #include <xv6/types.h>
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -171,12 +169,7 @@ void iinit(int dev) {
   readsb(dev, &sb);
   cprintf("sb: size %d nblocks %d ninodes %d nlog %d logstart %d inodestart %d "
           "bmap start %d\n",
-          sb.size,
-          sb.nblocks,
-          sb.ninodes,
-          sb.nlog,
-          sb.logstart,
-          sb.inodestart,
+          sb.size, sb.nblocks, sb.ninodes, sb.nlog, sb.logstart, sb.inodestart,
           sb.bmapstart);
 }
 
@@ -445,7 +438,7 @@ int readi(struct inode *ip, char *dst, uint off, uint n) {
 
 // Write data to inode.
 // Caller must hold ip->lock.
-int writei(struct inode *ip, char *src, uint off, uint n) {
+int writei(struct inode *ip, const char *src, uint off, uint n) {
   uint tot, m;
   struct buf *bp;
 
@@ -481,7 +474,7 @@ int namecmp(const char *s, const char *t) { return strncmp(s, t, DIRSIZ); }
 
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
-struct inode *dirlookup(struct inode *dp, char *name, uint *poff) {
+struct inode *dirlookup(struct inode *dp, const char *name, uint *poff) {
   uint off, inum;
   struct dirent de;
 
@@ -506,7 +499,7 @@ struct inode *dirlookup(struct inode *dp, char *name, uint *poff) {
 }
 
 // Write a new directory entry (name, inum) into the directory dp.
-int dirlink(struct inode *dp, char *name, uint inum) {
+int dirlink(struct inode *dp, const char *name, uint inum) {
   int off;
   struct dirent de;
   struct inode *ip;
@@ -547,8 +540,8 @@ int dirlink(struct inode *dp, char *name, uint inum) {
 //   skipelem("a", name) = "", setting name = "a"
 //   skipelem("", name) = skipelem("////", name) = 0
 //
-static char *skipelem(char *path, char *name) {
-  char *s;
+static const char *skipelem(const char *path, char *name) {
+  const char *s;
   int len;
 
   while (*path == '/')
@@ -574,7 +567,7 @@ static char *skipelem(char *path, char *name) {
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
-static struct inode *namex(char *path, int nameiparent, char *name) {
+static struct inode *namex(const char *path, int nameiparent, char *name) {
   struct inode *ip, *next;
 
   if (*path == '/')
@@ -607,11 +600,11 @@ static struct inode *namex(char *path, int nameiparent, char *name) {
   return ip;
 }
 
-struct inode *namei(char *path) {
+struct inode *namei(const char *path) {
   char name[DIRSIZ];
   return namex(path, 0, name);
 }
 
-struct inode *nameiparent(char *path, char *name) {
+struct inode *nameiparent(const char *path, char *name) {
   return namex(path, 1, name);
 }

@@ -92,3 +92,5 @@ struct madt_ioapic {
   uint ioapic_addr;
   uint gsi_base;
 };
+
+void mpinit(struct rsdp_desc *rsdp_desc);

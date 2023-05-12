@@ -2,6 +2,9 @@
 
 #include <xv6/mmu.h>
 #include <xv6/param.h>
+#include <xv6/proc.h>
+#include <xv6/seg.h>
+#include <xv6/spinlock.h>
 #include <xv6/types.h>
 
 // Per-CPU state
@@ -30,19 +33,21 @@ extern int ncpu;
 //  at the "Switch stacks" comment. Switch doesn't save eip explicitly,
 //  but it is on the stack and allocproc() manipulates it.
 struct context {
-  uint edi;
-  uint esi;
-  uint ebx;
-  uint ebp;
-  uint eip;
+  ulong r15;
+  ulong r14;
+  ulong r13;
+  ulong r12;
+  ulong rbp;
+  ulong rbx;
+  ulong rip;
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
-  uint sz;                    // Size of process memory (bytes)
-  pde_t *pgdir;               // Page table
+  ulong sz;                   // Size of process memory (bytes)
+  pte_t *pml4;                // Page table
   char *kstack;               // Bottom of kernel stack for this process
   enum procstate state;       // Process state
   int pid;                    // Process ID
@@ -61,3 +66,22 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+int cpuid(void);
+void exit(void);
+int fork(void);
+int growproc(int n);
+int kill(int pid);
+struct cpu *mycpu(void);
+struct proc *myproc(void);
+void pinit(void);
+void procdump(void);
+void scheduler(void) __attribute__((noreturn));
+void sched(void);
+void sleep(void *chan, struct spinlock *lk);
+void userinit(void);
+int wait(void);
+void wakeup(void *chan);
+void yield(void);
+
+void swtch(struct context **old_ctx, const struct context *new_ctx);

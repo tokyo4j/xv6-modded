@@ -2,8 +2,8 @@
 // http://www.intel.com/design/chipsets/datashts/29056601.pdf
 // See also picirq.c.
 
-#include <xv6/defs.h>
-#include <xv6/traps.h>
+#include <xv6/apic.h>
+#include <xv6/traptbl.h>
 #include <xv6/types.h>
 
 #define REG_ID    0x00 // Register index: ID
@@ -23,29 +23,21 @@
 volatile struct ioapic *ioapic;
 
 // IO APIC MMIO structure: write reg, then read or write data.
-struct ioapic {
-  uint reg;
-  uint pad[3];
-  uint data;
-};
 
-static uint ioapicread(int reg) {
+static uint ioapicread(uint reg) {
   ioapic->reg = reg;
   return ioapic->data;
 }
 
-static void ioapicwrite(int reg, uint data) {
+static void ioapicwrite(uint reg, uint data) {
   ioapic->reg = reg;
   ioapic->data = data;
 }
 
 void ioapicinit(void) {
-  int i, id, maxintr;
+  int i, maxintr;
 
   maxintr = (ioapicread(REG_VER) >> 16) & 0xFF;
-  id = ioapicread(REG_ID) >> 24;
-  if (id != ioapicid)
-    cprintf("ioapicinit: id isn't equal to ioapicid; not a MP\n");
 
   // Mark all interrupts edge-triggered, active high, disabled,
   // and not routed to any CPUs.

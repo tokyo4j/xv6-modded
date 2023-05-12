@@ -12,11 +12,11 @@
 #include <xv6/types.h>
 
 #ifndef static_assert
-#define static_assert(a, b)                                                    \
-  do {                                                                         \
-    switch (0)                                                                 \
-    case 0:                                                                    \
-    case (a):;                                                                 \
+#define static_assert(a, b) \
+  do { \
+    switch (0) \
+    case 0: \
+    case (a):; \
   } while (0)
 #endif
 
@@ -101,12 +101,7 @@ int main(int argc, char *argv[]) {
 
   printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks "
          "%u) blocks %d total %d\n",
-         nmeta,
-         nlog,
-         ninodeblocks,
-         nbitmap,
-         nblocks,
-         FSSIZE);
+         nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
 
   freeblock = nmeta; // the first free block that we can allocate
 

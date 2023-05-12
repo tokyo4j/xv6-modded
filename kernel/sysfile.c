@@ -4,17 +4,19 @@
 // user code, and calls into file.c and fs.c.
 //
 
-#include <xv6/defs.h>
+#include <xv6/console.h>
 #include <xv6/fcntl.h>
-#include <xv6/file.h>
 #include <xv6/fs.h>
-#include <xv6/mmu.h>
+#include <xv6/log.h>
+#include <xv6/misc.h>
 #include <xv6/param.h>
+#include <xv6/pipe.h>
 #include <xv6/proc.h>
-#include <xv6/sleeplock.h>
-#include <xv6/spinlock.h>
 #include <xv6/stat.h>
+#include <xv6/string.h>
+#include <xv6/syscall.h>
 #include <xv6/types.h>
+#include <xv6/vm.h>
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -48,7 +50,7 @@ static int fdalloc(struct file *f) {
   return -1;
 }
 
-int sys_dup(void) {
+ulong sys_dup(void) {
   struct file *f;
   int fd;
 
@@ -60,7 +62,7 @@ int sys_dup(void) {
   return fd;
 }
 
-int sys_read(void) {
+ulong sys_read(void) {
   struct file *f;
   int n;
   char *p;
@@ -70,7 +72,7 @@ int sys_read(void) {
   return fileread(f, p, n);
 }
 
-int sys_write(void) {
+ulong sys_write(void) {
   struct file *f;
   int n;
   char *p;
@@ -80,7 +82,7 @@ int sys_write(void) {
   return filewrite(f, p, n);
 }
 
-int sys_close(void) {
+ulong sys_close(void) {
   int fd;
   struct file *f;
 
@@ -91,7 +93,7 @@ int sys_close(void) {
   return 0;
 }
 
-int sys_fstat(void) {
+ulong sys_fstat(void) {
   struct file *f;
   struct stat *st;
 
@@ -101,7 +103,7 @@ int sys_fstat(void) {
 }
 
 // Create the path new as a link to the same inode as old.
-int sys_link(void) {
+ulong sys_link(void) {
   char name[DIRSIZ], *new, *old;
   struct inode *dp, *ip;
 
@@ -162,7 +164,7 @@ static int isdirempty(struct inode *dp) {
   return 1;
 }
 
-int sys_unlink(void) {
+ulong sys_unlink(void) {
   struct inode *ip, *dp;
   struct dirent de;
   char name[DIRSIZ], *path;
@@ -259,7 +261,7 @@ static struct inode *create(char *path, short type, short major, short minor) {
   return ip;
 }
 
-int sys_open(void) {
+ulong sys_open(void) {
   char *path;
   int fd, omode;
   struct file *f;
@@ -307,7 +309,7 @@ int sys_open(void) {
   return fd;
 }
 
-int sys_mkdir(void) {
+ulong sys_mkdir(void) {
   char *path;
   struct inode *ip;
 
@@ -321,7 +323,7 @@ int sys_mkdir(void) {
   return 0;
 }
 
-int sys_mknod(void) {
+ulong sys_mknod(void) {
   struct inode *ip;
   char *path;
   int major, minor;
@@ -337,7 +339,7 @@ int sys_mknod(void) {
   return 0;
 }
 
-int sys_chdir(void) {
+ulong sys_chdir(void) {
   char *path;
   struct inode *ip;
   struct proc *curproc = myproc();
@@ -360,19 +362,19 @@ int sys_chdir(void) {
   return 0;
 }
 
-int sys_exec(void) {
+ulong sys_exec(void) {
   char *path, *argv[MAXARG];
   int i;
-  uint uargv, uarg;
+  ulong uargv, uarg;
 
-  if (argstr(0, &path) < 0 || argint(1, (int *)&uargv) < 0) {
+  if (argstr(0, &path) < 0 || arglong(1, &uargv) < 0) {
     return -1;
   }
   memset(argv, 0, sizeof(argv));
   for (i = 0;; i++) {
     if (i >= NELEM(argv))
       return -1;
-    if (fetchint(uargv + 4 * i, (int *)&uarg) < 0)
+    if (fetchlong(uargv + sizeof(ulong) * i, &uarg) < 0)
       return -1;
     if (uarg == 0) {
       argv[i] = 0;
@@ -384,7 +386,7 @@ int sys_exec(void) {
   return exec(path, argv);
 }
 
-int sys_pipe(void) {
+ulong sys_pipe(void) {
   int *fd;
   struct file *rf, *wf;
   int fd0, fd1;

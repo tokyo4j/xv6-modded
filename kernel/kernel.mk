@@ -7,27 +7,24 @@ KERN_OBJS := $(patsubst %.c, %.o,\
 							$(patsubst %.S, %.o,\
 					      $(KERN_SRCS)))
 
-# make sure kernel/entry.o comes first
-KERN_OBJS := kernel/entry.o $(filter-out kernel/entry.o, $(KERN_OBJS))
-
 KERN_OBJS_IDEFS := $(KERN_OBJS) kernel/ide/ide.o
 KERN_OBJS_MEMFS := $(KERN_OBJS) kernel/ide/memide.o
 
-kernel.elf: $(KERN_OBJS_IDEFS) kernel/entryother kernel/initcode kernel/kernel.ld
-	$(LD) $(LDFLAGS) -T kernel/kernel.ld -o $@ $(KERN_OBJS_IDEFS) -b binary kernel/initcode kernel/entryother
+kernel.elf: $(KERN_OBJS_IDEFS) kernel/bin/initcode kernel/bin/entryother kernel/kernel.ld
+	$(LD) $(LDFLAGS) -T kernel/kernel.ld -o $@ $(KERN_OBJS_IDEFS) \
+		-b binary kernel/bin/initcode kernel/bin/entryother kernel/bin/zap-light16.psf
 
-kernelmemfs.elf: $(KERN_OBJS_MEMFS) kernel/entryother kernel/initcode kernel/kernel.ld fs.img
-	$(LD) $(LDFLAGS) -T kernel/kernel.ld -o $@ $(KERN_OBJS_MEMFS) -b binary kernel/initcode kernel/entryother fs.img
+kernelm.elf: $(KERN_OBJS_MEMFS) kernel/bin/initcode kernel/bin/entryother kernel/kernel.ld fs.img
+	$(LD) $(LDFLAGS) -T kernel/kernel.ld -o $@ $(KERN_OBJS_MEMFS) \
+		-b binary kernel/bin/initcode kernel/bin/entryother kernel/bin/zap-light16.psf fs.img
 
-kernel/initcode: kernel/bin/initcode.out
-	$(OBJCOPY) -S -O binary $< $@
-
+kernel/bin/initcode: kernel/bin/initcode.out
+	$(OBJCOPY) -j .text -S -O binary $< $@
 kernel/bin/initcode.out: kernel/bin/initcode.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $@ $<
 
-kernel/entryother: kernel/bin/entryother.out
-	$(OBJCOPY) -S -O binary -j .text $< $@
-
+kernel/bin/entryother: kernel/bin/entryother.out
+	$(OBJCOPY) -j .text -S -O binary -j .text $< $@
 kernel/bin/entryother.out: kernel/bin/entryother.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $@ $<
 

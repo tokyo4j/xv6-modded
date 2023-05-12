@@ -1,23 +1,9 @@
-#include <xv6/defs.h>
 #include <xv6/file.h>
-#include <xv6/fs.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
+#include <xv6/kalloc.h>
+#include <xv6/pipe.h>
 #include <xv6/proc.h>
-#include <xv6/sleeplock.h>
 #include <xv6/spinlock.h>
 #include <xv6/types.h>
-
-#define PIPESIZE 512
-
-struct pipe {
-  struct spinlock lock;
-  char data[PIPESIZE];
-  uint nread;    // number of bytes read
-  uint nwrite;   // number of bytes written
-  int readopen;  // read fd is still open
-  int writeopen; // write fd is still open
-};
 
 int pipealloc(struct file **f0, struct file **f1) {
   struct pipe *p;
@@ -69,7 +55,7 @@ void pipeclose(struct pipe *p, int writable) {
     release(&p->lock);
 }
 
-int pipewrite(struct pipe *p, char *addr, int n) {
+int pipewrite(struct pipe *p, const char *addr, int n) {
   int i;
 
   acquire(&p->lock);

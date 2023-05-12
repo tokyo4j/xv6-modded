@@ -1,11 +1,16 @@
-#include <xv6/defs.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
+#include <xv6/apic.h>
+#include <xv6/console.h>
+#include <xv6/fs.h>
+#include <xv6/kalloc.h>
+#include <xv6/log.h>
+#include <xv6/misc.h>
 #include <xv6/param.h>
 #include <xv6/proc.h>
 #include <xv6/spinlock.h>
+#include <xv6/string.h>
+#include <xv6/trap.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
+#include <xv6/vm.h>
 
 struct {
   struct spinlock lock;
@@ -23,14 +28,14 @@ static void wakeup1(void *chan);
 void pinit(void) { initlock(&ptable.lock, "ptable"); }
 
 // Must be called with interrupts disabled
-int cpuid() { return mycpu() - cpus; }
+int cpuid(void) { return mycpu() - cpus; }
 
 // Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
 struct cpu *mycpu(void) {
   int apicid, i;
 
-  if (readeflags() & FL_IF)
+  if (readrflags() & FL_IF)
     panic("mycpu called with interrupts enabled\n");
 
   apicid = lapicid();
@@ -91,13 +96,13 @@ found:
 
   // Set up new context to start executing at forkret,
   // which returns to trapret.
-  sp -= 4;
-  *(uint *)sp = (uint)trapret;
+  sp -= sizeof(ulong);
+  *(ulong *)sp = (ulong)trapret;
 
   sp -= sizeof *p->context;
   p->context = (struct context *)sp;
   memset(p->context, 0, sizeof *p->context);
-  p->context->eip = (uint)forkret;
+  p->context->rip = (ulong)forkret;
 
   return p;
 }
@@ -105,25 +110,23 @@ found:
 //  Set up first user process.
 void userinit(void) {
   struct proc *p;
-  extern char _binary_kernel_initcode_start[], _binary_kernel_initcode_size[];
 
   p = allocproc();
 
   initproc = p;
-  if ((p->pgdir = setupkvm()) == 0)
+  if ((p->pml4 = setupkvm()) == 0)
     panic("userinit: out of memory?");
-  inituvm(p->pgdir,
-          _binary_kernel_initcode_start,
-          (int)_binary_kernel_initcode_size);
+  inituvm(p->pml4, _binary_kernel_bin_initcode_start,
+          (ulong)_binary_kernel_bin_initcode_size);
   p->sz = PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
   p->tf->es = p->tf->ds;
   p->tf->ss = p->tf->ds;
-  p->tf->eflags = FL_IF;
-  p->tf->esp = PGSIZE;
-  p->tf->eip = 0; // beginning of initcode.S
+  p->tf->rflags = FL_IF;
+  p->tf->rsp = PGSIZE;
+  p->tf->rip = 0; // beginning of initcode.S
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -147,10 +150,10 @@ int growproc(int n) {
 
   sz = curproc->sz;
   if (n > 0) {
-    if ((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if ((sz = allocuvm(curproc->pml4, sz, sz + n, PTE_XD | PTE_W)) == 0)
       return -1;
   } else if (n < 0) {
-    if ((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if ((sz = deallocuvm(curproc->pml4, sz, sz + n)) == 0)
       return -1;
   }
   curproc->sz = sz;
@@ -172,7 +175,7 @@ int fork(void) {
   }
 
   // Copy process state from proc.
-  if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0) {
+  if ((np->pml4 = copyuvm(curproc->pml4, curproc->sz)) == 0) {
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
@@ -182,8 +185,8 @@ int fork(void) {
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
+  // Clear %rax so that fork returns 0 in the child.
+  np->tf->rax = 0;
 
   for (i = 0; i < NOFILE; i++)
     if (curproc->ofile[i])
@@ -267,7 +270,7 @@ int wait(void) {
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        freevm(p->pgdir);
+        freevm(p->pml4);
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
@@ -346,7 +349,7 @@ void sched(void) {
     panic("sched locks");
   if (p->state == RUNNING)
     panic("sched running");
-  if (readeflags() & FL_IF)
+  if (readrflags() & FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
@@ -459,16 +462,13 @@ int kill(int pid) {
 //  Runs when user types ^P on console.
 //  No lock to avoid wedging a stuck machine further.
 void procdump(void) {
-  static char *states[] = {[UNUSED] = "unused",
-                           [EMBRYO] = "embryo",
-                           [SLEEPING] = "sleep ",
-                           [RUNNABLE] = "runble",
-                           [RUNNING] = "run   ",
-                           [ZOMBIE] = "zombie"};
+  static char *states[] = {
+      [UNUSED] = "unused",   [EMBRYO] = "embryo",  [SLEEPING] = "sleep ",
+      [RUNNABLE] = "runble", [RUNNING] = "run   ", [ZOMBIE] = "zombie"};
   int i;
   struct proc *p;
   char *state;
-  uint pc[10];
+  ulong pc[10];
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->state == UNUSED)
@@ -479,9 +479,9 @@ void procdump(void) {
       state = "???";
     cprintf("%d %s %s", p->pid, state, p->name);
     if (p->state == SLEEPING) {
-      getcallerpcs((uint *)p->context->ebp + 2, pc);
+      getcallerpcs(pc);
       for (i = 0; i < 10 && pc[i] != 0; i++)
-        cprintf(" %p", pc[i]);
+        cprintf(" %x", pc[i]);
     }
     cprintf("\n");
   }

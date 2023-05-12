@@ -13,9 +13,9 @@ struct elfhdr {
   ushort type;
   ushort machine;
   uint version;
-  uint entry;
-  uint phoff;
-  uint shoff;
+  ulong entry;
+  ulong phoff;
+  ulong shoff;
   uint flags;
   ushort ehsize;
   ushort phentsize;
@@ -28,13 +28,13 @@ struct elfhdr {
 // Program section header
 struct proghdr {
   uint type;
-  uint off;
-  uint vaddr;
-  uint paddr;
-  uint filesz;
-  uint memsz;
   uint flags;
-  uint align;
+  ulong off;
+  ulong vaddr;
+  ulong paddr;
+  ulong filesz;
+  ulong memsz;
+  ulong align;
 };
 
 // Values for Proghdr type

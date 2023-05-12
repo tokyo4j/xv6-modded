@@ -4,7 +4,7 @@
       "name": "C++ Launch",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceRoot}/kernel.elf",
+      "program": "${workspaceRoot}/kernelm.elf",
       "miDebuggerServerAddress": "localhost:1234",
       "cwd": "${workspaceRoot}",
       "externalConsole": true,

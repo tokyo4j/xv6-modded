@@ -1,22 +1,18 @@
-#include <xv6/date.h>
-#include <xv6/defs.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
 #include <xv6/proc.h>
+#include <xv6/syscall.h>
+#include <xv6/trap.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
 
-int sys_fork(void) { return fork(); }
+ulong sys_fork(void) { return fork(); }
 
-int sys_exit(void) {
+ulong sys_exit(void) {
   exit();
   return 0; // not reached
 }
 
-int sys_wait(void) { return wait(); }
+ulong sys_wait(void) { return wait(); }
 
-int sys_kill(void) {
+ulong sys_kill(void) {
   int pid;
 
   if (argint(0, &pid) < 0)
@@ -24,10 +20,10 @@ int sys_kill(void) {
   return kill(pid);
 }
 
-int sys_getpid(void) { return myproc()->pid; }
+ulong sys_getpid(void) { return myproc()->pid; }
 
-int sys_sbrk(void) {
-  int addr;
+ulong sys_sbrk(void) {
+  ulong addr;
   int n;
 
   if (argint(0, &n) < 0)
@@ -38,7 +34,7 @@ int sys_sbrk(void) {
   return addr;
 }
 
-int sys_sleep(void) {
+ulong sys_sleep(void) {
   int n;
   uint ticks0;
 
@@ -59,7 +55,7 @@ int sys_sleep(void) {
 
 // return how many clock tick interrupts have occurred
 // since start.
-int sys_uptime(void) {
+ulong sys_uptime(void) {
   uint xticks;
 
   acquire(&tickslock);

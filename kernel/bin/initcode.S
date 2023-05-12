@@ -1,21 +1,21 @@
 # Initial process execs /init.
 # This code runs in user space.
 
-#include <xv6/syscall.h>
-#include <xv6/traps.h>
+#include <xv6/systbl.h>
+#include <xv6/traptbl.h>
 
 # exec(init, argv)
 .globl start
 start:
-  pushl $argv
-  pushl $init
-  pushl $0  // where caller pc would be
-  movl $SYS_exec, %eax
+  movq $argv, %rsi
+  movq $init, %rdi
+  pushq $0  // where caller pc would be
+  movq $SYS_exec, %rax
   int $T_SYSCALL
 
 # for(;;) exit();
 exit:
-  movl $SYS_exit, %eax
+  movq $SYS_exit, %rax
   int $T_SYSCALL
   jmp exit
 
@@ -26,6 +26,6 @@ init:
 # char *argv[] = { init, 0 };
 .p2align 2
 argv:
-  .long init
-  .long 0
+  .quad init
+  .quad 0
 

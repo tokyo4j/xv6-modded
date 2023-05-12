@@ -8,22 +8,23 @@
 
 .globl swtch
 swtch:
-  movl 4(%esp), %eax
-  movl 8(%esp), %edx
-
   # Save old callee-saved registers
-  pushl %ebp
-  pushl %ebx
-  pushl %esi
-  pushl %edi
+  pushq %rbx
+  pushq %rbp
+  pushq %r12
+  pushq %r13
+  pushq %r14
+  pushq %r15
 
   # Switch stacks
-  movl %esp, (%eax)
-  movl %edx, %esp
+  movq %rsp, (%rdi)
+  movq %rsi, %rsp
 
   # Load new callee-saved registers
-  popl %edi
-  popl %esi
-  popl %ebx
-  popl %ebp
-  ret
+  popq %r15
+  popq %r14
+  popq %r13
+  popq %r12
+  popq %rbp
+  popq %rbx
+  retq

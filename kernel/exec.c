@@ -1,20 +1,27 @@
-#include <xv6/defs.h>
+#include <xv6/console.h>
 #include <xv6/elf.h>
-#include <xv6/memlayout.h>
+#include <xv6/fs.h>
+#include <xv6/log.h>
+#include <xv6/misc.h>
 #include <xv6/mmu.h>
 #include <xv6/param.h>
 #include <xv6/proc.h>
+#include <xv6/string.h>
+#include <xv6/trap.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
+#include <xv6/vm.h>
 
 int exec(char *path, char **argv) {
   char *s, *last;
   int i, off;
-  uint argc, sz, sp, ustack[3 + MAXARG + 1];
+  uint argc;
+  ulong sz, sp;
+  // fake return address + ptrs to args + NULL
+  ulong ustack[1 + MAXARG + 1];
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
-  pde_t *pgdir, *oldpgdir;
+  pte_t *pml4 = 0, *oldpml4;
   struct proc *curproc = myproc();
 
   begin_op();
@@ -25,7 +32,6 @@ int exec(char *path, char **argv) {
     return -1;
   }
   ilock(ip);
-  pgdir = 0;
 
   // Check ELF header
   if (readi(ip, (char *)&elf, 0, sizeof(elf)) != sizeof(elf))
@@ -33,7 +39,7 @@ int exec(char *path, char **argv) {
   if (elf.magic != ELF_MAGIC)
     goto bad;
 
-  if ((pgdir = setupkvm()) == 0)
+  if ((pml4 = setupkvm()) == 0)
     goto bad;
 
   // Load program into memory.
@@ -47,11 +53,16 @@ int exec(char *path, char **argv) {
       goto bad;
     if (ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
-    if ((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
+    ulong flags = 0;
+    if (!(ph.flags & ELF_PROG_FLAG_EXEC))
+      flags |= PTE_XD;
+    if (ph.flags & ELF_PROG_FLAG_WRITE)
+      flags |= PTE_W;
+    if ((sz = allocuvm(pml4, sz, ph.vaddr + ph.memsz, flags)) == 0)
       goto bad;
     if (ph.vaddr % PGSIZE != 0)
       goto bad;
-    if (loaduvm(pgdir, (char *)ph.vaddr, ip, ph.off, ph.filesz) < 0)
+    if (loaduvm(pml4, ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
   }
   iunlockput(ip);
@@ -61,28 +72,31 @@ int exec(char *path, char **argv) {
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
-  if ((sz = allocuvm(pgdir, sz, sz + 2 * PGSIZE)) == 0)
+  if ((sz = allocuvm(pml4, sz, sz + 2 * PGSIZE, PTE_XD | PTE_W)) == 0)
     goto bad;
-  clearpteu(pgdir, (char *)(sz - 2 * PGSIZE));
+  clearpteu(pml4, sz - 2 * PGSIZE);
   sp = sz;
 
   // Push argument strings, prepare rest of stack in ustack.
   for (argc = 0; argv[argc]; argc++) {
     if (argc >= MAXARG)
       goto bad;
-    sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
-    if (copyout(pgdir, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
+    sp = ALIGN(sp - (strlen(argv[argc]) + 1), (ulong)sizeof(ulong));
+    if (copyout(pml4, sp, (ulong)argv[argc], strlen(argv[argc]) + 1) < 0)
       goto bad;
-    ustack[3 + argc] = sp;
+    ustack[1 + argc] = sp;
   }
-  ustack[3 + argc] = 0;
+  ustack[1 + argc] = 0UL;
 
-  ustack[0] = 0xffffffff; // fake return PC
-  ustack[1] = argc;
-  ustack[2] = sp - (argc + 1) * 4; // argv pointer
+  // fake return PC
+  ustack[0] = ~0UL;
+  // argc (second argument of main())
+  curproc->tf->rdi = argc;
+  // argv pointer (first argument of main())
+  curproc->tf->rsi = sp - (argc + 1) * sizeof(ulong);
 
-  sp -= (3 + argc + 1) * 4;
-  if (copyout(pgdir, sp, ustack, (3 + argc + 1) * 4) < 0)
+  sp -= (1 + argc + 1) * sizeof(ulong);
+  if (copyout(pml4, sp, (ulong)ustack, (1 + argc + 1) * sizeof(ulong)) < 0)
     goto bad;
 
   // Save program name for debugging.
@@ -92,18 +106,19 @@ int exec(char *path, char **argv) {
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
   // Commit to the user image.
-  oldpgdir = curproc->pgdir;
-  curproc->pgdir = pgdir;
+  oldpml4 = curproc->pml4;
+  curproc->pml4 = pml4;
   curproc->sz = sz;
-  curproc->tf->eip = elf.entry; // main
-  curproc->tf->esp = sp;
+  curproc->tf->rip = elf.entry; // main
+  curproc->tf->rsp = sp;
   switchuvm(curproc);
-  freevm(oldpgdir);
+  freevm(oldpml4);
+
   return 0;
 
 bad:
-  if (pgdir)
-    freevm(pgdir);
+  if (pml4)
+    freevm(pml4);
   if (ip) {
     iunlockput(ip);
     end_op();

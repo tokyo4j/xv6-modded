@@ -1,16 +1,18 @@
-#include <xv6/defs.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
+#include <xv6/apic.h>
+#include <xv6/console.h>
+#include <xv6/ide.h>
+#include <xv6/kbd.h>
 #include <xv6/proc.h>
-#include <xv6/spinlock.h>
-#include <xv6/traps.h>
+#include <xv6/seg.h>
+#include <xv6/syscall.h>
+#include <xv6/trap.h>
+#include <xv6/traptbl.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
+#include <xv6/uart.h>
 
 // Interrupt descriptor table (shared by all CPUs).
-struct gatedesc idt[256];
-extern uint vectors[]; // in vectors.S: array of 256 entry pointers
+static __attribute__((aligned(16))) struct gatedesc idt[256];
+extern ulong vectors[]; // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
@@ -64,30 +66,22 @@ void trap(struct trapframe *tf) {
       break;
     case T_IRQ0 + 7:
     case T_IRQ0 + IRQ_SPURIOUS:
-      cprintf("cpu%d: spurious interrupt at %x:%x\n", cpuid(), tf->cs, tf->eip);
+      cprintf("cpu%d: spurious interrupt at %x:%x\n", cpuid(), tf->cs, tf->rip);
       lapiceoi();
       break;
 
     default:
       if (myproc() == 0 || (tf->cs & 3) == 0) {
         // In kernel, it must be our mistake.
-        cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
-                tf->trapno,
-                cpuid(),
-                tf->eip,
-                rcr2());
+        cprintf("unexpected trap %d from cpu %d rip %x (cr2=0x%x)\n",
+                tf->trapno, cpuid(), tf->rbp, rcr2());
         panic("trap");
       }
       // In user space, assume process misbehaved.
       cprintf("pid %d %s: trap %d err %d on cpu %d "
-              "eip 0x%x addr 0x%x--kill proc\n",
-              myproc()->pid,
-              myproc()->name,
-              tf->trapno,
-              tf->err,
-              cpuid(),
-              tf->eip,
-              rcr2());
+              "rip 0x%x addr 0x%x--kill proc\n",
+              myproc()->pid, myproc()->name, tf->trapno, tf->err, cpuid(),
+              tf->rip, rcr2());
       myproc()->killed = 1;
   }
 

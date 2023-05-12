@@ -1,15 +1,13 @@
 // Mutual exclusion spin locks.
 
-#include <xv6/defs.h>
+#include <xv6/console.h>
 #include <xv6/memlayout.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
 #include <xv6/proc.h>
 #include <xv6/spinlock.h>
 #include <xv6/types.h>
 #include <xv6/x86.h>
 
-void initlock(struct spinlock *lk, char *name) {
+void initlock(struct spinlock *lk, const char *name) {
   lk->name = name;
   lk->locked = 0;
   lk->cpu = 0;
@@ -35,7 +33,7 @@ void acquire(struct spinlock *lk) {
 
   // Record info about lock acquisition for debugging.
   lk->cpu = mycpu();
-  getcallerpcs(&lk, lk->pcs);
+  getcallerpcs(lk->pcs);
 }
 
 // Release the lock.
@@ -61,17 +59,19 @@ void release(struct spinlock *lk) {
   popcli();
 }
 
-// Record the current call stack in pcs[] by following the %ebp chain.
-void getcallerpcs(void *v, uint pcs[]) {
-  uint *ebp;
+// Record the current call stack in pcs[] by following the %rbp chain.
+void getcallerpcs(ulong pcs[]) {
+  ulong *rbp;
   int i;
 
-  ebp = (uint *)v - 2;
+  asm("movq %%rbp, %0" : "=m"(rbp));
+  rbp = (ulong *)*rbp;
+
   for (i = 0; i < 10; i++) {
-    if (ebp == 0 || ebp < (uint *)KERNBASE || ebp == (uint *)0xffffffff)
+    if (rbp == 0 || rbp < (ulong *)KERNBASE || rbp == (ulong *)-1L)
       break;
-    pcs[i] = ebp[1];      // saved %eip
-    ebp = (uint *)ebp[0]; // saved %ebp
+    pcs[i] = rbp[1];       // saved %rip
+    rbp = (ulong *)rbp[0]; // saved %rbp
   }
   for (; i < 10; i++)
     pcs[i] = 0;
@@ -91,17 +91,17 @@ int holding(struct spinlock *lock) {
 // are off, then pushcli, popcli leaves them off.
 
 void pushcli(void) {
-  int eflags;
+  int rflags;
 
-  eflags = readeflags();
+  rflags = readrflags();
   cli();
   if (mycpu()->ncli == 0)
-    mycpu()->intena = eflags & FL_IF;
+    mycpu()->intena = rflags & FL_IF;
   mycpu()->ncli += 1;
 }
 
 void popcli(void) {
-  if (readeflags() & FL_IF)
+  if (readrflags() & FL_IF)
     panic("popcli - interruptible");
   if (--mycpu()->ncli < 0)
     panic("popcli");

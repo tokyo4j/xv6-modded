@@ -2,16 +2,18 @@
 
 #pragma once
 
+#ifndef __ASSEMBLER__
+
 #include <xv6/types.h>
 
 static inline uchar inb(ushort port) {
   uchar data;
 
-  asm volatile("in %1,%0" : "=a"(data) : "d"(port));
+  asm volatile("inb %1,%0" : "=a"(data) : "d"(port));
   return data;
 }
 
-static inline void insl(int port, void *addr, int cnt) {
+static inline void insl(ushort port, void *addr, int cnt) {
   asm volatile("cld; rep insl"
                : "=D"(addr), "=c"(cnt)
                : "d"(port), "0"(addr), "1"(cnt)
@@ -19,14 +21,14 @@ static inline void insl(int port, void *addr, int cnt) {
 }
 
 static inline void outb(ushort port, uchar data) {
-  asm volatile("out %0,%1" : : "a"(data), "d"(port));
+  asm volatile("outb %0,%1" : : "a"(data), "d"(port));
 }
 
 static inline void outw(ushort port, ushort data) {
-  asm volatile("out %0,%1" : : "a"(data), "d"(port));
+  asm volatile("outw %0,%1" : : "a"(data), "d"(port));
 }
 
-static inline void outsl(int port, const void *addr, int cnt) {
+static inline void outsl(ushort port, const void *addr, int cnt) {
   asm volatile("cld; rep outsl"
                : "=S"(addr), "=c"(cnt)
                : "d"(port), "0"(addr), "1"(cnt)
@@ -49,34 +51,32 @@ static inline void stosl(void *addr, int data, int cnt) {
 
 struct segdesc;
 
-static inline void lgdt(struct segdesc *p, int size) {
-  volatile ushort pd[3];
+static inline void lgdt(struct segdesc *p, ushort size) {
+  volatile struct {
+    ushort size;
+    ulong ptr;
+  } __attribute__((packed)) pd = {.size = size - 1, .ptr = (ulong)p};
 
-  pd[0] = size - 1;
-  pd[1] = (uint)p;
-  pd[2] = (uint)p >> 16;
-
-  asm volatile("lgdt (%0)" : : "r"(pd));
+  asm volatile("lgdt %0" : : "m"(pd));
 }
 
 struct gatedesc;
 
 static inline void lidt(struct gatedesc *p, int size) {
-  volatile ushort pd[3];
+  volatile struct {
+    ushort size;
+    ulong ptr;
+  } __attribute__((packed)) pd = {.size = size - 1, .ptr = (ulong)p};
 
-  pd[0] = size - 1;
-  pd[1] = (uint)p;
-  pd[2] = (uint)p >> 16;
-
-  asm volatile("lidt (%0)" : : "r"(pd));
+  asm volatile("lidt %0" : : "m"(pd));
 }
 
 static inline void ltr(ushort sel) { asm volatile("ltr %0" : : "r"(sel)); }
 
-static inline uint readeflags(void) {
-  uint eflags;
-  asm volatile("pushfl; popl %0" : "=r"(eflags));
-  return eflags;
+static inline ulong readrflags(void) {
+  ulong rflags;
+  asm volatile("pushfq; popq %0" : "=r"(rflags));
+  return rflags;
 }
 
 static inline void loadgs(ushort v) {
@@ -98,49 +98,31 @@ static inline uint xchg(volatile uint *addr, uint newval) {
   return result;
 }
 
-static inline uint rcr2(void) {
-  uint val;
-  asm volatile("movl %%cr2,%0" : "=r"(val));
+static inline ulong rcr2(void) {
+  ulong val;
+  asm volatile("movq %%cr2,%0" : "=r"(val));
   return val;
 }
 
-static inline void lcr3(uint val) {
-  asm volatile("movl %0,%%cr3" : : "r"(val));
+static inline void lcr3(ulong val) {
+  asm volatile("movq %0,%%cr3" : : "r"(val));
 }
 
-//  Layout of the trap frame built on the stack by the
-//  hardware and by trapasm.S, and passed to trap().
-struct trapframe {
-  // registers as pushed by pusha
-  uint edi;
-  uint esi;
-  uint ebp;
-  uint oesp; // useless & ignored
-  uint ebx;
-  uint edx;
-  uint ecx;
-  uint eax;
+#endif
 
-  // rest of trap frame
-  ushort gs;
-  ushort padding1;
-  ushort fs;
-  ushort padding2;
-  ushort es;
-  ushort padding3;
-  ushort ds;
-  ushort padding4;
-  uint trapno;
+#define DPL_USER 3
 
-  // below here defined by x86 hardware
-  uint err;
-  uint eip;
-  ushort cs;
-  ushort padding5;
-  uint eflags;
+// Eflags register
+#define FL_IF 0x00000200 // Interrupt Enable
 
-  // below here only when crossing rings, such as from user to kernel
-  uint esp;
-  ushort ss;
-  ushort padding6;
-};
+// Control Register flags
+#define CR0_PE 0x00000001 // Protection Enable
+#define CR0_WP 0x00010000 // Write Protect
+#define CR0_PG 0x80000000 // Paging
+
+#define CR4_PSE 0x00000010 // Page Size Extension
+#define CR4_PAE 0x00000020 // Page Address Extension
+
+#define IA32_EFER 0xC0000080
+#define EFER_LME  0x100
+#define EFER_NXE  0x800

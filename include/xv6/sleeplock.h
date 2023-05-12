@@ -10,6 +10,11 @@ struct sleeplock {
   struct spinlock lk; // spinlock protecting this sleep lock
 
   // For debugging:
-  char *name; // Name of lock.
-  int pid;    // Process holding lock
+  const char *name; // Name of lock.
+  int pid;          // Process holding lock
 };
+
+void initsleeplock(struct sleeplock *lk, const char *name);
+void acquiresleep(struct sleeplock *lk);
+void releasesleep(struct sleeplock *lk);
+int holdingsleep(struct sleeplock *lk);

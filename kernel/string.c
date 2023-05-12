@@ -1,8 +1,9 @@
+#include <xv6/misc.h>
 #include <xv6/types.h>
 #include <xv6/x86.h>
 
 void *memset(void *dst, int c, uint n) {
-  if ((int)dst % 4 == 0 && n % 4 == 0) {
+  if ((ulong)dst % 4 == 0 && n % 4 == 0) {
     c &= 0xFF;
     stosl(dst, (c << 24) | (c << 16) | (c << 8) | c, n / 4);
   } else
@@ -45,6 +46,23 @@ void *memmove(void *dst, const void *src, uint n) {
 // memcpy exists to placate GCC.  Use memmove.
 void *memcpy(void *dst, const void *src, uint n) {
   return memmove(dst, src, n);
+}
+
+// memcpy implementation using rep movsd
+// used for large memory copies
+void *memcpy_fast(void *dst, const void *src, uint n) {
+  char *aligned_start = (char *)ALIGNUP((ulong)src, 4UL);
+  const char *end = (const char *)src + n;
+
+  const char *s = src;
+  char *d = dst;
+  while (s < aligned_start)
+    *d++ = *s++;
+  asm("rep movsd" : "+D"(d), "+S"(s) : "c"((end - s) >> 2));
+  while (s < end)
+    *d++ = *s++;
+
+  return dst;
 }
 
 int strncmp(const char *p, const char *q, uint n) {

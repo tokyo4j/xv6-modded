@@ -2,12 +2,11 @@
 // File descriptors
 //
 
-#include <xv6/defs.h>
+#include <xv6/console.h>
 #include <xv6/file.h>
-#include <xv6/fs.h>
+#include <xv6/log.h>
 #include <xv6/param.h>
-#include <xv6/sleeplock.h>
-#include <xv6/spinlock.h>
+#include <xv6/pipe.h>
 #include <xv6/stat.h>
 #include <xv6/types.h>
 

@@ -2,6 +2,8 @@
 #include <xv6/types.h>
 #include <xv6/user.h>
 
+#include <stdarg.h>
+
 static void putc(int fd, char c) { write(fd, &c, 1); }
 
 static void printint(int fd, int xx, int base, int sgn) {
@@ -31,12 +33,11 @@ static void printint(int fd, int xx, int base, int sgn) {
 
 // Print to the given fd. Only understands %d, %x, %p, %s.
 void printf(int fd, const char *fmt, ...) {
-  char *s;
   int c, i, state;
-  uint *ap;
+  va_list ap;
+  va_start(ap, fmt);
 
   state = 0;
-  ap = (uint *)(void *)&fmt + 1;
   for (i = 0; fmt[i]; i++) {
     c = fmt[i] & 0xff;
     if (state == 0) {
@@ -47,14 +48,13 @@ void printf(int fd, const char *fmt, ...) {
       }
     } else if (state == '%') {
       if (c == 'd') {
-        printint(fd, *ap, 10, 1);
-        ap++;
+        int i = va_arg(ap, int);
+        printint(fd, i, 10, 1);
       } else if (c == 'x' || c == 'p') {
-        printint(fd, *ap, 16, 0);
-        ap++;
+        int i = (int)va_arg(ap, int);
+        printint(fd, i, 16, 0);
       } else if (c == 's') {
-        s = (char *)*ap;
-        ap++;
+        char *s = va_arg(ap, char *);
         if (s == 0)
           s = "(null)";
         while (*s != 0) {
@@ -62,8 +62,8 @@ void printf(int fd, const char *fmt, ...) {
           s++;
         }
       } else if (c == 'c') {
-        putc(fd, *ap);
-        ap++;
+        char c = va_arg(ap, int);
+        putc(fd, c);
       } else if (c == '%') {
         putc(fd, c);
       } else {

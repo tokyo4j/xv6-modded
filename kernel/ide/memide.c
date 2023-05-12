@@ -1,26 +1,18 @@
 // Fake IDE disk; stores blocks in memory.
 // Useful for running kernel without scratch disk.
 
-#include <xv6/buf.h>
-#include <xv6/defs.h>
-#include <xv6/fs.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
-#include <xv6/proc.h>
-#include <xv6/sleeplock.h>
-#include <xv6/spinlock.h>
-#include <xv6/traps.h>
+#include <xv6/bio.h>
+#include <xv6/console.h>
+#include <xv6/misc.h>
+#include <xv6/string.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
-
-extern uchar _binary_fs_img_start[], _binary_fs_img_size[];
 
 static int disksize;
 static uchar *memdisk;
 
 void ideinit(void) {
-  memdisk = _binary_fs_img_start;
-  disksize = (uint)_binary_fs_img_size / BSIZE;
+  memdisk = (uchar *)_binary_fs_img_start;
+  disksize = (uint)((ulong)_binary_fs_img_size / BSIZE);
 }
 
 // Interrupt handler.

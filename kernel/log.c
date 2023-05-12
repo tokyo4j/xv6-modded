@@ -1,9 +1,10 @@
-#include <xv6/buf.h>
-#include <xv6/defs.h>
+#include <xv6/bio.h>
+#include <xv6/console.h>
 #include <xv6/fs.h>
 #include <xv6/param.h>
-#include <xv6/sleeplock.h>
+#include <xv6/proc.h>
 #include <xv6/spinlock.h>
+#include <xv6/string.h>
 #include <xv6/types.h>
 
 // Simple logging that allows concurrent FS system calls.
@@ -173,7 +174,7 @@ static void write_log(void) {
   }
 }
 
-static void commit() {
+static void commit(void) {
   if (log.lh.n > 0) {
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit

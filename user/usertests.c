@@ -3,8 +3,8 @@
 #include <xv6/memlayout.h>
 #include <xv6/param.h>
 #include <xv6/stat.h>
-#include <xv6/syscall.h>
-#include <xv6/traps.h>
+#include <xv6/systbl.h>
+#include <xv6/traptbl.h>
 #include <xv6/types.h>
 #include <xv6/user.h>
 
@@ -815,7 +815,7 @@ void concreate(void) {
 
 // another concurrent link/unlink/create test,
 // to look for deadlocks.
-void linkunlink() {
+void linkunlink(void) {
   int pid, i;
 
   printf(1, "linkunlink test\n");
@@ -1391,7 +1391,7 @@ void sbrktest(void) {
   // can one grow address space to something big?
 #define BIG (100 * 1024 * 1024)
   a = sbrk(0);
-  amt = (BIG) - (uint)a;
+  amt = (BIG) - (uint)(ulong)a;
   p = sbrk(amt);
   if (p != a) {
     printf(stdout,
@@ -1404,14 +1404,14 @@ void sbrktest(void) {
   // can one de-allocate?
   a = sbrk(0);
   c = sbrk(-4096);
-  if (c == (char *)0xffffffff) {
+  if (c == (char *)-1L) {
     printf(stdout, "sbrk could not deallocate\n");
     exit();
   }
   c = sbrk(0);
   if (c != a - 4096) {
-    printf(
-        stdout, "sbrk deallocation produced wrong address, a %x c %x\n", a, c);
+    printf(stdout, "sbrk deallocation produced wrong address, a %x c %x\n", a,
+           c);
     exit();
   }
 
@@ -1460,7 +1460,7 @@ void sbrktest(void) {
   for (i = 0; i < sizeof(pids) / sizeof(pids[0]); i++) {
     if ((pids[i] = fork()) == 0) {
       // allocate a lot of memory
-      sbrk(BIG - (uint)sbrk(0));
+      sbrk(BIG - (uint)(ulong)sbrk(0));
       write(fds[1], "x", 1);
       // sit around until killed
       for (;;)
@@ -1478,7 +1478,7 @@ void sbrktest(void) {
     kill(pids[i]);
     wait();
   }
-  if (c == (char *)0xffffffff) {
+  if (c == (char *)-1L) {
     printf(stdout, "failed sbrk leaked memory\n");
     exit();
   }
@@ -1491,10 +1491,10 @@ void sbrktest(void) {
 
 void validateint(int *p) {
   int res;
-  asm("mov %%esp, %%ebx\n\t"
-      "mov %3, %%esp\n\t"
+  asm("mov %%rsp, %%rbx\n\t"
+      "mov %3, %%rsp\n\t"
       "int %2\n\t"
-      "mov %%ebx, %%esp"
+      "mov %%rbx, %%rsp"
       : "=a"(res)
       : "a"(SYS_sleep), "n"(T_SYSCALL), "c"(p)
       : "ebx");
@@ -1502,7 +1502,7 @@ void validateint(int *p) {
 
 void validatetest(void) {
   int hi, pid;
-  uint p;
+  unsigned long p;
 
   printf(stdout, "validate test\n");
   hi = 1100 * 1024;
@@ -1582,9 +1582,8 @@ void bigargtest(void) {
 
 // what happens when the file system runs out of blocks?
 // answer: balloc panics, so this test is not useful.
-void fsfull() {
+void fsfull(void) {
   int nfiles;
-  int fsblocks = 0;
 
   printf(1, "fsfull test\n");
 
@@ -1608,7 +1607,6 @@ void fsfull() {
       if (cc < 512)
         break;
       total += cc;
-      fsblocks++;
     }
     printf(1, "wrote %d bytes\n", total);
     close(fd);
@@ -1631,7 +1629,7 @@ void fsfull() {
   printf(1, "fsfull test finished\n");
 }
 
-void uio() {
+void uio(void) {
 #define RTC_ADDR 0x70
 #define RTC_DATA 0x71
 
@@ -1658,7 +1656,7 @@ void uio() {
   printf(1, "uio test done\n");
 }
 
-void argptest() {
+void argptest(void) {
   int fd;
   fd = open("init", O_RDONLY);
   if (fd < 0) {
@@ -1671,7 +1669,7 @@ void argptest() {
 }
 
 unsigned long randstate = 1;
-unsigned int rand() {
+unsigned int rand(void) {
   randstate = randstate * 1664525 + 1013904223;
   return randstate;
 }

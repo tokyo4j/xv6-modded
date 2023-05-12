@@ -1,6 +1,5 @@
-#include <xv6/asm.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
+#include <xv6/seg.h>
+#include <xv6/x86.h>
 
 # Each non-boot CPU ("AP") is started up in response to a STARTUP
 # IPI from the boot CPU.  Section B.4.2 of the Multi-Processor
@@ -23,70 +22,76 @@
 .globl start
 start:
   cli
-
-  # Zero data segment registers DS, ES, and SS.
   xorw    %ax,%ax
   movw    %ax,%ds
-  movw    %ax,%es
-  movw    %ax,%ss
 
-  # Switch from real to protected mode.  Use a bootstrap GDT that makes
-  # virtual addresses map directly to physical addresses so that the
-  # effective memory map doesn't change during the transition.
-  lgdt    gdtdesc
+  // enter protected mode
+  lgdt    gdtdesc32
   movl    %cr0, %eax
   orl     $CR0_PE, %eax
   movl    %eax, %cr0
 
-  # Complete the transition to 32-bit protected mode by using a long jmp
-  # to reload %cs and %eip.  The segment descriptors are set up with no
-  # translation, so that the mapping is still the identity mapping.
-  ljmpl    $(SEG_KCODE<<3), $(start32)
-
-.code32  # Tell assembler to generate 32-bit code now.
-start32:
   # Set up the protected-mode data segment registers
   movw    $(SEG_KDATA<<3), %ax    # Our data segment selector
   movw    %ax, %ds                # -> DS: Data Segment
   movw    %ax, %es                # -> ES: Extra Segment
   movw    %ax, %ss                # -> SS: Stack Segment
-  movw    $0, %ax                 # Zero segments not ready for use
-  movw    %ax, %fs                # -> FS
-  movw    %ax, %gs                # -> GS
+  ljmpl    $(SEG_KCODE<<3), $(start32)
 
-  # Turn on page size extension for 4Mbyte pages
-  movl    %cr4, %eax
-  orl     $(CR4_PSE), %eax
-  movl    %eax, %cr4
-  # Use entrypgdir as our initial page table
-  movl    (start-12), %eax
+.code32
+start32:
+  # Use entry_pml4 as our initial page table
+  movl    (start-24), %eax
   movl    %eax, %cr3
-  # Turn on paging.
+
+  # Enable PAE
+  movl    %cr4, %eax
+  or      $(CR4_PAE), %eax
+  movl    %eax, %cr4
+
+  # enter ia32e mode
+  movl    $(IA32_EFER), %ecx
+  rdmsr
+  orl     $(EFER_LME | EFER_NXE), %eax
+  wrmsr
+
+  # Turn on paging (w/ write protect) and enter long mode
   movl    %cr0, %eax
-  orl     $(CR0_PE|CR0_PG|CR0_WP), %eax
+  orl     $(CR0_PG | CR0_WP), %eax
   movl    %eax, %cr0
 
-  # Switch to the stack allocated by startothers()
-  movl    (start-4), %esp
-  # Call mpenter()
-  call	 *(start-8)
+  # reload segments (long mode bit in code segment descriptor is set)
+  lgdt    gdtdesc64
+  movw    $(SEG_KDATA<<3), %ax
+  movw    %ax, %ds
+  movw    %ax, %ss
+  movw    %ax, %es
+  movw    %ax, %fs
+  movw    %ax, %gs
+  ljmp    $(SEG_KCODE<<3), $(start64)
 
-  movw    $0x8a00, %ax
-  movw    %ax, %dx
-  outw    %ax, %dx
-  movw    $0x8ae0, %ax
-  outw    %ax, %dx
-spin:
-  jmp     spin
+.code64
+start64:
+  # Switch to the stack allocated by startothers()
+  movq    (start-8), %rsp
+  # Call mpenter()
+  movq    (start-16), %rax
+  call	 *%rax
+
+1:
+  jmp     1b
 
 .p2align 2
-gdt:
-  SEG_NULLASM
-  SEG_ASM(STA_X|STA_R, 0, 0xffffffff)
-  SEG_ASM(STA_W, 0, 0xffffffff)
-
-
-gdtdesc:
-  .word   (gdtdesc - gdt - 1)
-  .long   gdt
-
+// TODO: 32-bit GDT is unnecessary
+gdt32:
+  SEGDESC_NULL
+  SEGDESC32_CODE(0)
+  SEGDESC32_DATA(0)
+gdtdesc32:
+  GDTDESC32(gdtdesc32-gdt32, gdt32)
+gdt64:
+  SEGDESC_NULL
+  SEGDESC64_CODE(0)
+  SEGDESC32_DATA(0)
+gdtdesc64:
+  GDTDESC64(gdtdesc64-gdt64, gdt64)

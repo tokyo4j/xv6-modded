@@ -2,18 +2,18 @@
 // Input is from the keyboard or serial port.
 // Output is written to the screen and serial port.
 
-#include <xv6/defs.h>
+#include <stdarg.h>
+#include <xv6/apic.h>
+#include <xv6/console.h>
+#include <xv6/fb.h>
 #include <xv6/file.h>
-#include <xv6/fs.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
+#include <xv6/kbd.h>
 #include <xv6/proc.h>
-#include <xv6/sleeplock.h>
 #include <xv6/spinlock.h>
-#include <xv6/traps.h>
+#include <xv6/string.h>
+#include <xv6/traptbl.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
+#include <xv6/uart.h>
 
 static void consputc(int);
 
@@ -24,86 +24,32 @@ static struct {
   int locking;
 } cons;
 
-static void printint(int xx, int base, int sign) {
-  static char digits[] = "0123456789abcdef";
-  char buf[16];
-  int i;
-  uint x;
+void cprintf(const char *fmt, ...) {
+  va_list ap;
+  char buf[512];
 
-  if (sign && (sign = xx < 0))
-    x = -xx;
-  else
-    x = xx;
-
-  i = 0;
-  do {
-    buf[i++] = digits[x % base];
-  } while ((x /= base) != 0);
-
-  if (sign)
-    buf[i++] = '-';
-
-  while (--i >= 0)
-    consputc(buf[i]);
-}
-
-// Print to the console. only understands %d, %x, %p, %s.
-void cprintf(char *fmt, ...) {
-  int i, c, locking;
-  uint *argp;
-  char *s;
-
-  locking = cons.locking;
+  int locking = cons.locking;
   if (locking)
     acquire(&cons.lock);
 
-  if (fmt == 0)
-    panic("null fmt");
+  va_start(ap, fmt);
+  vsprintf(buf, fmt, ap);
+  va_end(ap);
 
-  argp = (uint *)(void *)(&fmt + 1);
-  for (i = 0; (c = fmt[i] & 0xff) != 0; i++) {
-    if (c != '%') {
-      consputc(c);
-      continue;
-    }
-    c = fmt[++i] & 0xff;
-    if (c == 0)
-      break;
-    switch (c) {
-      case 'd':
-        printint(*argp++, 10, 1);
-        break;
-      case 'x':
-      case 'p':
-        printint(*argp++, 16, 0);
-        break;
-      case 'c':
-        consputc(*argp++);
-        break;
-      case 's':
-        if ((s = (char *)*argp++) == 0)
-          s = "(null)";
-        for (; *s; s++)
-          consputc(*s);
-        break;
-      case '%':
-        consputc('%');
-        break;
-      default:
-        // Print unknown % sequence to draw attention.
-        consputc('%');
-        consputc(c);
-        break;
-    }
-  }
+  char *p = buf;
+  char c;
+  while ((c = *p++))
+    consputc(c);
+
+  fb_commit();
 
   if (locking)
     release(&cons.lock);
 }
 
-void panic(char *s) {
+void panic(const char *s) {
   int i;
-  uint pcs[10];
+  ulong pcs[10];
 
   cli();
   cons.locking = 0;
@@ -111,7 +57,7 @@ void panic(char *s) {
   cprintf("lapicid %d: panic: ", lapicid());
   cprintf(s);
   cprintf("\n");
-  getcallerpcs(&s, pcs);
+  getcallerpcs(pcs);
   for (i = 0; i < 10; i++)
     cprintf(" %p", pcs[i]);
   panicked = 1; // freeze other CPU
@@ -119,43 +65,7 @@ void panic(char *s) {
     ;
 }
 
-#define BACKSPACE 0x100
-#define CRTPORT   0x3d4
-static ushort *crt = (ushort *)P2V(0xb8000); // CGA memory
-
-static void cgaputc(int c) {
-  int pos;
-
-  // Cursor position: col + 80*row.
-  outb(CRTPORT, 14);
-  pos = inb(CRTPORT + 1) << 8;
-  outb(CRTPORT, 15);
-  pos |= inb(CRTPORT + 1);
-
-  if (c == '\n')
-    pos += 80 - pos % 80;
-  else if (c == BACKSPACE) {
-    if (pos > 0)
-      --pos;
-  } else
-    crt[pos++] = (c & 0xff) | 0x0700; // black on white
-
-  if (pos < 0 || pos > 25 * 80)
-    panic("pos under/overflow");
-
-  if ((pos / 80) >= 24) { // Scroll up.
-    memmove(crt, crt + 80, sizeof(crt[0]) * 23 * 80);
-    pos -= 80;
-    memset(crt + pos, 0, sizeof(crt[0]) * (24 * 80 - pos));
-  }
-
-  outb(CRTPORT, 14);
-  outb(CRTPORT + 1, pos >> 8);
-  outb(CRTPORT, 15);
-  outb(CRTPORT + 1, pos);
-  crt[pos] = ' ' | 0x0700;
-}
-
+// Doesn't commit framebuffer
 void consputc(int c) {
   if (panicked) {
     cli();
@@ -167,20 +77,24 @@ void consputc(int c) {
     uartputc('\b');
     uartputc(' ');
     uartputc('\b');
-  } else
+    fb_putc('\b');
+    fb_putc(' ');
+    fb_putc('\b');
+  } else {
     uartputc(c);
-  cgaputc(c);
+    fb_putc(c);
+  }
 }
 
+// should be power of two
 #define INPUT_BUF 128
+
 struct {
   char buf[INPUT_BUF];
   uint r; // Read index
   uint w; // Write index
   uint e; // Edit index
 } input;
-
-#define C(x) ((x) - '@') // Control-x
 
 void consoleintr(int (*getc)(void)) {
   int c, doprocdump = 0;
@@ -219,13 +133,14 @@ void consoleintr(int (*getc)(void)) {
         break;
     }
   }
+  fb_commit();
   release(&cons.lock);
   if (doprocdump) {
     procdump(); // now call procdump() wo. cons.lock held
   }
 }
 
-int consoleread(struct inode *ip, char *dst, int n) {
+static int consoleread(struct inode *ip, char *dst, int n) {
   uint target;
   int c;
 
@@ -261,13 +176,14 @@ int consoleread(struct inode *ip, char *dst, int n) {
   return target - n;
 }
 
-int consolewrite(struct inode *ip, char *buf, int n) {
+static int consolewrite(struct inode *ip, const char *buf, int n) {
   int i;
 
   iunlock(ip);
   acquire(&cons.lock);
   for (i = 0; i < n; i++)
-    consputc(buf[i] & 0xff);
+    consputc(buf[i]);
+  fb_commit();
   release(&cons.lock);
   ilock(ip);
 

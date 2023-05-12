@@ -1,11 +1,9 @@
-#include <xv6/defs.h>
-#include <xv6/memlayout.h>
-#include <xv6/mmu.h>
-#include <xv6/param.h>
+#include <xv6/console.h>
+#include <xv6/misc.h>
 #include <xv6/proc.h>
-#include <xv6/syscall.h>
+#include <xv6/systbl.h>
+#include <xv6/trap.h>
 #include <xv6/types.h>
-#include <xv6/x86.h>
 
 // User code makes a system call with INT T_SYSCALL.
 // System call number in %eax.
@@ -13,20 +11,20 @@
 // library system call function. The saved user %esp points
 // to a saved program counter, and then the first argument.
 
-// Fetch the int at addr from the current process.
-int fetchint(uint addr, int *ip) {
+// Fetch the unsigned long at addr
+int fetchlong(ulong addr, ulong *ip) {
   struct proc *curproc = myproc();
 
-  if (addr >= curproc->sz || addr + 4 > curproc->sz)
+  if (addr >= curproc->sz || addr + sizeof(ulong) > curproc->sz)
     return -1;
-  *ip = *(int *)(addr);
+  *ip = *(ulong *)(addr);
   return 0;
 }
 
 // Fetch the nul-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
 // Returns length of string, not including nul.
-int fetchstr(uint addr, char **pp) {
+int fetchstr(ulong addr, char **pp) {
   char *s, *ep;
   struct proc *curproc = myproc();
 
@@ -41,21 +39,51 @@ int fetchstr(uint addr, char **pp) {
   return -1;
 }
 
+// Fetch the nth 64-bit system call argument.
+int arglong(int n, ulong *ip) {
+  switch (n) {
+    case 0:
+      *ip = myproc()->tf->rdi;
+      return 0;
+    case 1:
+      *ip = myproc()->tf->rsi;
+      return 0;
+    case 2:
+      *ip = myproc()->tf->rdx;
+      return 0;
+    case 3:
+      *ip = myproc()->tf->rcx;
+      return 0;
+    case 4:
+      *ip = myproc()->tf->r8;
+      return 0;
+    case 5:
+      *ip = myproc()->tf->r9;
+      return 0;
+    default:
+      return fetchlong(myproc()->tf->rsp + sizeof(ulong) * (n + 1), ip);
+  }
+}
+
 // Fetch the nth 32-bit system call argument.
 int argint(int n, int *ip) {
-  return fetchint((myproc()->tf->esp) + 4 + 4 * n, ip);
+  ulong i;
+  if (arglong(n, &i) < 0)
+    return -1;
+  *ip = (int)i;
+  return 0;
 }
 
 // Fetch the nth word-sized system call argument as a pointer
 // to a block of memory of size bytes.  Check that the pointer
 // lies within the process address space.
 int argptr(int n, char **pp, int size) {
-  int i;
+  ulong i;
   struct proc *curproc = myproc();
 
-  if (argint(n, &i) < 0)
+  if (arglong(n, &i) < 0)
     return -1;
-  if (size < 0 || (uint)i >= curproc->sz || (uint)i + size > curproc->sz)
+  if (size < 0 || i >= curproc->sz || i + size > curproc->sz)
     return -1;
   *pp = (char *)i;
   return 0;
@@ -66,35 +94,35 @@ int argptr(int n, char **pp, int size) {
 // (There is no shared writable memory, so the string can't change
 // between this check and being used by the kernel.)
 int argstr(int n, char **pp) {
-  int addr;
-  if (argint(n, &addr) < 0)
+  ulong addr;
+  if (arglong(n, &addr) < 0)
     return -1;
   return fetchstr(addr, pp);
 }
 
-extern int sys_chdir(void);
-extern int sys_close(void);
-extern int sys_dup(void);
-extern int sys_exec(void);
-extern int sys_exit(void);
-extern int sys_fork(void);
-extern int sys_fstat(void);
-extern int sys_getpid(void);
-extern int sys_kill(void);
-extern int sys_link(void);
-extern int sys_mkdir(void);
-extern int sys_mknod(void);
-extern int sys_open(void);
-extern int sys_pipe(void);
-extern int sys_read(void);
-extern int sys_sbrk(void);
-extern int sys_sleep(void);
-extern int sys_unlink(void);
-extern int sys_wait(void);
-extern int sys_write(void);
-extern int sys_uptime(void);
+extern ulong sys_chdir(void);
+extern ulong sys_close(void);
+extern ulong sys_dup(void);
+extern ulong sys_exec(void);
+extern ulong sys_exit(void);
+extern ulong sys_fork(void);
+extern ulong sys_fstat(void);
+extern ulong sys_getpid(void);
+extern ulong sys_kill(void);
+extern ulong sys_link(void);
+extern ulong sys_mkdir(void);
+extern ulong sys_mknod(void);
+extern ulong sys_open(void);
+extern ulong sys_pipe(void);
+extern ulong sys_read(void);
+extern ulong sys_sbrk(void);
+extern ulong sys_sleep(void);
+extern ulong sys_unlink(void);
+extern ulong sys_wait(void);
+extern ulong sys_write(void);
+extern ulong sys_uptime(void);
 
-static int (*syscalls[])(void) = {
+static ulong (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,     [SYS_exit] = sys_exit,
     [SYS_wait] = sys_wait,     [SYS_pipe] = sys_pipe,
     [SYS_read] = sys_read,     [SYS_kill] = sys_kill,
@@ -112,11 +140,11 @@ void syscall(void) {
   int num;
   struct proc *curproc = myproc();
 
-  num = curproc->tf->eax;
+  num = (int)curproc->tf->rax;
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    curproc->tf->eax = syscalls[num]();
+    curproc->tf->rax = syscalls[num]();
   } else {
     cprintf("%d %s: unknown sys call %d\n", curproc->pid, curproc->name, num);
-    curproc->tf->eax = -1;
+    curproc->tf->rax = -1;
   }
 }
